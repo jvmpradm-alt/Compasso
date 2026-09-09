@@ -117,7 +117,7 @@ h1,h2,h3,h4{margin:0;text-wrap:balance}
 .view{padding:18px 16px 108px;max-width:1120px;width:100%;margin:0 auto;display:flex;flex-direction:column;gap:18px}
 
 .tabbar{
-  position:fixed;left:0;right:0;bottom:0;z-index:40;display:grid;grid-template-columns:repeat(5,1fr);
+  position:fixed;left:0;right:0;bottom:0;z-index:40;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;
   background:rgba(14,12,15,.96);backdrop-filter:blur(14px);border-top:1px solid var(--line);
   padding:6px 4px calc(6px + env(safe-area-inset-bottom));
 }
@@ -486,7 +486,9 @@ function icon(name,size){
     upload:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7.5 8.5L12 4l4.5 4.5"/><path d="M12 4v12"/>',
     download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7.5 11.5L12 16l4.5-4.5"/><path d="M12 16V4"/>',
     lock:'<rect x="4" y="10.5" width="16" height="10" rx="2.5"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/>',
-    sheet:'<rect x="3" y="3.5" width="18" height="17" rx="2.5"/><path d="M3 9h18M3 15h18M9 3.5v17M15 3.5v17"/>'
+    sheet:'<rect x="3" y="3.5" width="18" height="17" rx="2.5"/><path d="M3 9h18M3 15h18M9 3.5v17M15 3.5v17"/>',
+    copy:'<rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M15 6V4.5A1.5 1.5 0 0 0 13.5 3H4.5A1.5 1.5 0 0 0 3 4.5v9A1.5 1.5 0 0 0 4.5 15H6"/>',
+    share:'<path d="M12 3v12"/><path d="M8 6.5L12 3l4 3.5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/>'
   };
   return '<svg class="ic" width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+(P[name]||"")+'</svg>';
 }
@@ -494,7 +496,7 @@ function icon(name,size){
 /* ============ estado ============ */
 const COLS=["hinos","eventos","integrantes","sugestoes"];
 let data={hinos:{},eventos:{},integrantes:{},sugestoes:{}};
-let DB=null, MODO="local", PODE_EDITAR=true, PODE_SERVIDOR=true, TRAVADO=false, USUARIO="", ASSINADO=false;
+let DB=null, MODO="local", PODE_EDITAR=true, PODE_TUDO=true, PODE_SERVIDOR=true, TRAVADO=false, USUARIO="", ASSINADO=false;
 let S={view:"agenda", periodo:"semana", cursor:hoje(), selDia:iso(hoje()),
        busca:"", ordem:"numero", histModo:"data", sugFiltro:"pendentes",
        selModo:false, sel:{}};
@@ -522,13 +524,16 @@ async function initStore(){
   if(!DB){
     MODO="local";
     COLS.forEach(c=>{data[c]=LS.get("db."+c,{});});
-    PODE_SERVIDOR=true; aplicarTrava(); render();
+    PODE_SERVIDOR=true; PODE_TUDO=true; PODE_EDITAR=true; aplicarTrava(); render();
     toast("Banco não configurado. Os dados ficam só neste aparelho.");
     return;
   }
   MODO="nuvem";
   B.onUser(u=>{
-    PODE_SERVIDOR=!!(B.ehAdmin&&B.ehAdmin());
+    const pp=(B.papel&&B.papel())||"leitura";
+    PODE_TUDO=(pp==="admin");
+    PODE_EDITAR=(pp==="admin"||pp==="agenda");
+    PODE_SERVIDOR=PODE_TUDO;
     USUARIO=(u&&!u.isAnonymous&&u.email)?u.email:"";
     aplicarTrava();
     if(!ASSINADO&&u){ASSINADO=true;assinar();}
@@ -546,13 +551,16 @@ function assinar(){
   });
 }
 function aplicarTrava(){
-  TRAVADO=(MODO==="nuvem")&&!PODE_SERVIDOR;
-  PODE_EDITAR=PODE_SERVIDOR;
+  TRAVADO=(MODO==="nuvem")&&!PODE_EDITAR;
   document.body.classList.toggle("ro",!PODE_EDITAR);
-  if(!PODE_EDITAR){S.selModo=false;S.sel={};}
+  if(!PODE_TUDO){S.selModo=false;S.sel={};}
 }
 function persistLocal(c){LS.set("db."+c,data[c]);}
-function podeMexer(col){return col==="sugestoes"?true:PODE_EDITAR;}
+function podeMexer(col){
+  if(col==="sugestoes")return true;
+  if(col==="eventos")return PODE_EDITAR;
+  return PODE_TUDO;
+}
 async function save(col,id,obj){
   if(!podeMexer(col)){toast("Você está no modo somente leitura.");return null;}
   id=id||uid();
@@ -579,7 +587,8 @@ function hinoDe(item){
   const h=item.hinoId?data.hinos[item.hinoId]:null;
   return {id:item.hinoId||null,
     numero:h?h.numero:item.numero, titulo:h?h.titulo:item.titulo,
-    tom:h?h.tom:item.tom, bpm:h?h.bpm:item.bpm, notas:h?h.notas:""};
+    tom:h?h.tom:item.tom, bpm:h?h.bpm:item.bpm,
+    puxa:h?h.puxa:"", notas:h?h.notas:""};
 }
 function eventosOrd(){return list("eventos").sort((a,b)=>(a.data+(a.hora||"")).localeCompare(b.data+(b.hora||"")));}
 function proximo(){const t=iso(hoje());return eventosOrd().find(e=>e.data>=t)||null;}
@@ -613,8 +622,11 @@ const VIEWS=[
   {k:"banda",l:"Banda",ic:"banda"},
   {k:"sugestoes",l:"Sugestões",ic:"sugestoes"}
 ];
+/* Quem administra vê tudo. Os componentes veem só Agenda e Sugestões. */
+const VIEWS_COMPONENTE=["agenda","sugestoes"];
+function viewsOk(){return PODE_TUDO?VIEWS:VIEWS.filter(v=>VIEWS_COMPONENTE.indexOf(v.k)>=0);}
 function renderNav(){
-  const p=pendentes();
+  const p=pendentes(), VIEWS=viewsOk();
   $("#navRail").innerHTML=VIEWS.map(v=>
     '<button data-act="ir" data-v="'+v.k+'" class="'+(S.view===v.k?"on":"")+'">'+icon(v.ic)+'<span>'+v.l+'</span>'+
     (v.k==="sugestoes"&&p?'<span class="badge">'+p+'</span>':'')+'</button>').join("");
@@ -631,6 +643,7 @@ function renderNav(){
 
 /* ============ render ============ */
 function render(){
+  if(!viewsOk().some(v=>v.k===S.view))S.view="agenda";
   renderNav();
   const V=$("#view");
   const titles={agenda:["Agenda",{semana:"Semana",mes:"Mês",ano:"Ano"}[S.periodo]],
@@ -741,6 +754,7 @@ function vAgenda(){
         :'<div class="banner">'+icon("list",16)+'Repertório ainda não montado para este compromisso.</div>')+
       '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
       (ED()?'<button class="btn primary" data-act="montar" data-id="'+nx.id+'">'+icon("list",15)+'Montar repertório</button>':'')+
+      '<button class="btn" data-act="resumo" data-id="'+nx.id+'">'+icon("share",15)+'Resumo para o grupo</button>'+
       '<button class="btn" data-act="evento" data-id="'+nx.id+'">Abrir</button></div>'+
       '</div></div>'):"";
   return topo+
@@ -750,7 +764,8 @@ function vAgenda(){
     (ED()?'<button class="btn sm primary" data-act="novoEvento">'+icon("plus",14)+'Novo</button>':'')+'</div>'+
     corpo;
 }
-function ED(){return PODE_EDITAR;}
+function ED(){return PODE_EDITAR;}   /* pode mexer na agenda */
+function TUDO(){return PODE_TUDO;} /* pode mexer nos cadastros */
 function stat(n,l){return '<div class="stat"><div class="n">'+n+'</div><div class="l">'+l+'</div></div>';}
 function setItem(it,i){
   const h=hinoDe(it);
@@ -774,7 +789,7 @@ function vRepertorio(){
     return String(ult(a)||"0").localeCompare(String(ult(b)||"0"));
   });
   if(!list("hinos").length)return semDados("repertório");
-  const sm=S.selModo&&ED();
+  const sm=S.selModo&&TUDO();
   const linhas=hs.map(h=>{
     const k=ex[h.id]||{}, st=statusHino(k.ultima), mk=!!S.sel[h.id];
     return '<button class="row'+(sm&&mk?" marcada":"")+'" data-act="'+(sm?"selHino":"hino")+'" data-id="'+h.id+'">'+
@@ -801,13 +816,16 @@ function vRepertorio(){
     '<span class="chip">'+fmtCurto(nx.data)+'</span></div><div class="panel-bd">'+
     '<div style="font-weight:600;margin-bottom:10px">'+esc(nx.titulo||TIPOS[nx.tipo])+'</div>'+
     ((nx.hinos||[]).length?'<div class="setlist" style="margin-bottom:12px">'+nx.hinos.map((it,i)=>setItem(it,i)).join("")+'</div>':'<p class="muted" style="margin:0 0 12px">Nenhum hino escolhido ainda.</p>')+
-    (ED()?'<button class="btn primary wide" data-act="montar" data-id="'+nx.id+'">'+icon("list",15)+'Montar repertório da semana</button>':'')+'</div></div>'):"";
+    '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+    (ED()?'<button class="btn primary" data-act="montar" data-id="'+nx.id+'">'+icon("list",15)+'Montar repertório</button>':'')+
+    '<button class="btn" data-act="resumo" data-id="'+nx.id+'">'+icon("share",15)+'Resumo para o grupo</button>'+
+    '</div></div></div>'):"";
   return semana+
     '<div class="toolbar"><div class="search">'+icon("search",16)+'<input type="text" id="q" placeholder="Buscar por número, título ou tom" value="'+esc(S.busca)+'"></div>'+
     '<select id="ord" style="width:auto;min-width:170px">'+
     [["numero","Por número"],["titulo","Por título"],["tocados","Mais tocados"],["antigos","Parados há mais tempo"]]
       .map(o=>'<option value="'+o[0]+'"'+(S.ordem===o[0]?" selected":"")+'>'+o[1]+'</option>').join("")+'</select>'+
-    (ED()?'<button class="btn sm'+(sm?" primary":"")+'" data-act="selModo">'+icon("check",14)+'Selecionar</button>'+
+    (TUDO()?'<button class="btn sm'+(sm?" primary":"")+'" data-act="selModo">'+icon("check",14)+'Selecionar</button>'+
       '<button class="btn sm" data-act="importar">'+icon("upload",14)+'Importar planilha</button>'+
       '<button class="btn sm primary" data-act="novoHino">'+icon("plus",14)+'Hino</button>':'')+'</div>'+
     '<div class="panel">'+barra+'<div class="panel-bd flush">'+(linhas||'<div class="empty"><p>Nenhum hino encontrado para esta busca.</p></div>')+'</div></div>';
@@ -867,7 +885,7 @@ function vBanda(){
       '<div class="cts">'+
       (p.telefone?'<a class="icon-btn" href="tel:'+esc(p.telefone)+'" title="Ligar">'+icon("phone",15)+'</a>':'')+
       (p.email?'<a class="icon-btn" href="mailto:'+esc(p.email)+'" title="E-mail">'+icon("mail",15)+'</a>':'')+
-      (ED()?'<button class="icon-btn" data-act="editIntegrante" data-id="'+p.id+'">'+icon("edit",15)+'</button>':'')+
+      (TUDO()?'<button class="icon-btn" data-act="editIntegrante" data-id="'+p.id+'">'+icon("edit",15)+'</button>':'')+
       '</div></div>').join("")+'</div></div></div>').join("");
   const escala=nx?('<div class="panel"><div class="panel-hd"><span class="eyebrow">Escala · '+esc(nx.titulo||TIPOS[nx.tipo])+'</span><div class="spacer"></div><span class="chip">'+fmtCurto(nx.data)+'</span></div>'+
     '<div class="panel-bd"><div class="pick-grid">'+
@@ -876,7 +894,7 @@ function vBanda(){
     '</div>'+(ED()?'<p class="faint" style="font-size:12.5px;margin:11px 0 0">Toque no nome para escalar ou tirar da escala.</p>':'')+'</div></div>'):"";
   return '<div class="stats">'+stat(ppl.length,"componentes")+stat(ppl.filter(p=>p.ativo!==false).length,"ativos")+
     stat(Object.keys(porNaipe).length,"naipes")+stat(nx?(nx.escala||[]).length:0,"escalados")+'</div>'+
-    (ED()?'<div class="toolbar"><div style="flex:1"></div><button class="btn sm primary" data-act="novoIntegrante">'+icon("plus",14)+'Integrante</button></div>':'')+
+    (TUDO()?'<div class="toolbar"><div style="flex:1"></div><button class="btn sm primary" data-act="novoIntegrante">'+icon("plus",14)+'Integrante</button></div>':'')+
     escala+grupos;
 }
 
@@ -895,7 +913,7 @@ function vSugestoes(){
       '<span class="chip '+((s.status||"pendente")==="aprovada"?"ok":"warn")+'">'+((s.status||"pendente")==="aprovada"?"aprovada":"pendente")+'</span></div>'+
       (s.motivo?'<div class="why">'+esc(s.motivo)+'</div>':'')+
       '<div class="by">sugerido por '+esc(s.autor||"anônimo")+(s.criadoEm?" · "+fmtData(s.criadoEm):"")+'</div>'+
-      (ED()?'<div class="acts">'+
+      (TUDO()?'<div class="acts">'+
       ((s.status||"pendente")==="pendente"?'<button class="btn sm primary" data-act="aprovar" data-id="'+s.id+'">'+icon("check",14)+'Aprovar e cadastrar</button>':'')+
       '<button class="btn sm" data-act="editSugestao" data-id="'+s.id+'">Editar</button>'+
       '<button class="btn sm danger" data-act="delSugestao" data-id="'+s.id+'">Remover</button>'+
@@ -914,7 +932,7 @@ function vSugestoes(){
 function votos(s){return s.votos?Object.keys(s.votos).length:0;}
 
 function semDados(qual){
-  if(!ED())return '<div class="panel"><div class="empty"><div class="big">'+esc(qual)+' vazio</div>'+
+  if(!TUDO())return '<div class="panel"><div class="empty"><div class="big">'+esc(qual)+' vazio</div>'+
     '<p>Ainda não há registros aqui. Quem administra a banda precisa cadastrar os primeiros itens.</p></div></div>';
   return '<div class="panel"><div class="empty"><div class="big">'+esc(qual)+' vazio</div>'+
     '<p>Ainda não há registros. Cadastre o primeiro item ou carregue um conjunto de exemplo para ver como o sistema funciona (dá para apagar depois em Ajustes).</p>'+
@@ -957,7 +975,8 @@ function mIncluir(){
     ["novaSugestao","star","Sugestão da banda","Qualquer componente pode sugerir"],
     ["novoIntegrante","banda","Integrante","Nome, instrumento, naipe e contato"]
   ];
-  modal("Incluir",'<div class="menu-list" style="padding:0">'+it.map(i=>
+  const itens=TUDO()?it:it.filter(i=>i[0]==="novoEvento"||i[0]==="montarProx"||i[0]==="novaSugestao");
+  modal("Incluir",'<div class="menu-list" style="padding:0">'+itens.map(i=>
     '<button data-act="'+i[0]+'"><span class="mi">'+icon(i[1],17)+'</span><span>'+i[2]+'<span class="ds">'+i[3]+'</span></span></button>').join("")+'</div>');
 }
 
@@ -1022,8 +1041,9 @@ function mDetalheEvento(id){
       :'<p class="muted" style="margin:0">Ninguém escalado ainda.</p>')+'</div>'+
     (e.obs?'<div><div class="eyebrow" style="margin-bottom:6px">Observações</div><p class="muted" style="margin:0;white-space:pre-wrap">'+esc(e.obs)+'</p></div>':'')+
     '</div>',
-    ED()?('<button class="btn" data-act="editEvento" data-id="'+id+'">'+icon("edit",15)+'Editar</button>'+
-    '<button class="btn primary" data-act="montar" data-id="'+id+'">'+icon("list",15)+'Repertório</button>'):"");
+    '<button class="btn" data-act="resumo" data-id="'+id+'">'+icon("share",15)+'Resumo</button>'+
+    (ED()?('<button class="btn" data-act="editEvento" data-id="'+id+'">'+icon("edit",15)+'Editar</button>'+
+    '<button class="btn primary" data-act="montar" data-id="'+id+'">'+icon("list",15)+'Repertório</button>'):""));
 }
 
 function mMontar(eid){
@@ -1172,28 +1192,84 @@ function mEu(){
   });
 }
 
+/* ============ resumo para o grupo ============ */
+function textoResumo(e){
+  const d=parseD(e.data), L=[];
+  L.push("*"+String(e.titulo||TIPOS[e.tipo]||"Compromisso").toUpperCase()+"*");
+  L.push(DIAS[d.getDay()]+", "+fmtData(e.data)+(e.hora?" · "+e.hora:"")+(e.local?" · "+e.local:""));
+  const hs=e.hinos||[];
+  L.push("");
+  if(hs.length){
+    L.push("*Repertório*");
+    hs.forEach((it,i)=>{
+      const h=hinoDe(it);
+      const det=[h.tom?"tom "+h.tom:"", h.bpm?h.bpm+" BPM":"", h.puxa?"puxa "+h.puxa:""].filter(Boolean).join(" · ");
+      L.push((i+1)+". "+(h.numero?h.numero+" - ":"")+(h.titulo||"Sem título")+(det?"  ("+det+")":""));
+    });
+  }else L.push("_Repertório ainda não definido._");
+  const ppl=(e.escala||[]).map(id=>data.integrantes[id]).filter(Boolean);
+  if(ppl.length){
+    L.push(""); L.push("*Escala*");
+    ppl.forEach(p=>L.push("• "+p.nome+(p.instrumento?" — "+p.instrumento:"")));
+  }
+  if(e.obs){ L.push(""); L.push("*Observações*"); L.push(e.obs); }
+  return L.join("\n");
+}
+function mResumo(id){
+  const e=data.eventos[id]; if(!e){toast("Compromisso não encontrado.");return;}
+  const txt=textoResumo(e), temShare=!!(navigator.share);
+  modal("Resumo para o grupo",
+    '<div class="form">'+
+    '<p class="muted" style="margin:0;font-size:14px">Texto pronto no formato do WhatsApp, com negrito nos títulos. Copie e cole no grupo da banda.</p>'+
+    '<textarea id="f_res" readonly style="min-height:230px;font-family:var(--mono);font-size:12.5px;line-height:1.5">'+esc(txt)+'</textarea>'+
+    '</div>',
+    (temShare?'<button class="btn" data-act="compartilhar">'+icon("share",15)+'Compartilhar</button>':'')+
+    '<button class="btn primary" data-act="copiarResumo">'+icon("copy",15)+'Copiar texto</button>');
+}
+function msgAuth(c){
+  if(/invalid-credential|wrong-password|user-not-found/.test(c))return "E-mail ou senha incorretos.";
+  if(/invalid-email/.test(c))return "E-mail inválido.";
+  if(/email-already-in-use/.test(c))return "Já existe conta com este e-mail. Use Entrar.";
+  if(/weak-password/.test(c))return "Senha fraca: use 6 caracteres ou mais.";
+  if(/too-many-requests/.test(c))return "Muitas tentativas. Espere um minuto.";
+  if(/network-request-failed/.test(c))return "Sem conexão com o servidor.";
+  if(/operation-not-allowed/.test(c))return "Login por e-mail não está ativado no Firebase.";
+  return "Não deu certo ("+(c||"erro")+").";
+}
 function mEntrar(){
   modal("Entrar como administrador",
     '<div class="form">'+
-    '<p class="muted" style="margin:0;font-size:14px">Entre com a conta de administrador para cadastrar e editar. Os componentes acompanham agenda e repertório sem precisar entrar.</p>'+
-    '<div class="field"><label>E-mail</label><input type="email" id="f_email" autocomplete="username" placeholder="voce@exemplo.com"></div>'+
-    '<div class="field"><label>Senha</label><input type="password" id="f_senha" autocomplete="current-password"></div>'+
-    '</div>','<button class="btn primary wide" data-act="salvar">Entrar</button>');
-  onSave=async()=>{
-    const B=window.BANDA||{};
-    if(!B.entrar){toast("Login indisponível: o banco não está configurado.");return;}
-    try{
-      await B.entrar(val("f_email"),val("f_senha"));
-      fechar(); toast("Modo administrador liberado.");
-    }catch(e){
-      const c=(e&&e.code)||"";
-      toast(/wrong-password|invalid-credential|user-not-found|invalid-email/.test(c)
-        ?"E-mail ou senha incorretos."
-        :"Não deu para entrar ("+(c||"erro")+").");
-    }
+    '<p class="muted" style="margin:0;font-size:14px">Esta tela é só para quem administra a banda. Os componentes acompanham agenda e repertório sem entrar.</p>'+
+    '<div class="field"><label>E-mail</label><input type="email" id="a_email" autocomplete="username" placeholder="voce@exemplo.com"></div>'+
+    '<div class="field"><label>Senha</label><input type="password" id="a_senha" autocomplete="current-password" placeholder="mínimo 6 caracteres"></div>'+
+    '<div id="a_msg" style="display:none;font-size:13.5px;padding:10px 12px;border-radius:9px;color:#FFB9BF;background:rgba(225,29,46,.12);border:1px solid #4A2027"></div>'+
+    '<button class="btn primary wide" id="a_entrar">Entrar</button>'+
+    '<div style="display:flex;gap:9px"><button class="btn" style="flex:1" id="a_criar">Criar esta conta</button>'+
+    '<button class="btn ghost" style="flex:1" id="a_esq">Esqueci a senha</button></div>'+
+    '<p class="faint" style="margin:0;font-size:12.5px">Use "Criar esta conta" se você ainda não cadastrou sua senha, ou se a antiga não funciona. Só vira administrador o e-mail que estiver na lista do config.js.</p>'+
+    '</div>');
+  const R=$("#modalRoot"), B=window.BANDA||{};
+  const em=R.querySelector("#a_email"), sn=R.querySelector("#a_senha"), ms=R.querySelector("#a_msg");
+  const diz=(t,ok)=>{ms.textContent=t;ms.style.display="block";
+    ms.style.color=ok?"#B4E8D2":"#FFB9BF";
+    ms.style.background=ok?"rgba(69,181,138,.10)":"rgba(225,29,46,.12)";
+    ms.style.borderColor=ok?"#23473A":"#4A2027";};
+  async function faz(fn){
+    const e=em.value.trim(), s2=sn.value;
+    if(!e||!s2){diz("Preencha e-mail e senha.");return;}
+    if(!fn){diz("A conexão com o Firebase não carregou. Motivo: "+((window.BANDA&&window.BANDA.erro)||"desconhecido"));return;}
+    try{ await fn(e,s2); fechar(); toast("Modo administrador liberado."); }
+    catch(err){ diz(msgAuth((err&&err.code)||"")); }
+  }
+  R.querySelector("#a_entrar").onclick=()=>faz(B.entrar);
+  R.querySelector("#a_criar").onclick=()=>faz(B.criar);
+  R.querySelector("#a_esq").onclick=async()=>{
+    const e=em.value.trim();
+    if(!e){diz("Escreva seu e-mail primeiro.");return;}
+    try{ await B.recuperar(e); diz("Enviamos um e-mail para você criar uma senha nova. Olhe também o spam.",true); }
+    catch(err){ diz(msgAuth((err&&err.code)||"")); }
   };
-  const i=document.getElementById("f_senha");
-  if(i)i.addEventListener("keydown",e=>{if(e.key==="Enter"&&onSave)onSave();});
+  sn.addEventListener("keydown",e=>{if(e.key==="Enter")R.querySelector("#a_entrar").click();});
 }
 function mAjustes(){
   const c=COLS.map(k=>k+": "+Object.keys(data[k]).length).join(" · ");
@@ -1206,16 +1282,16 @@ function mAjustes(){
         :(TRAVADO?"Modo acompanhamento. A edição está travada por senha. Você vê agenda, repertório, histórico e escala, e pode sugerir hinos e apoiar sugestões."
           :"Somente leitura. Você acompanha agenda, repertório, histórico e escala, e pode sugerir hinos e apoiar sugestões. Para editar, peça acesso de edição a quem administra.")))+
     '</p></div>'+
-    (MODO==="nuvem"&&PODE_EDITAR?'<div class="field"><label>Como liberar acesso</label><p class="muted" style="margin:0;font-size:14px">Qualquer pessoa com o link acompanha agenda e repertório sem precisar de conta, e pode sugerir hinos. Cadastrar, editar e apagar exige a conta de administrador. Essa trava é aplicada pelo servidor, nas regras do banco.</p></div>':'')+
+    (MODO==="nuvem"&&PODE_EDITAR?'<div class="field"><label>Como liberar acesso</label><p class="muted" style="margin:0;font-size:14px">Qualquer pessoa com o link acompanha agenda e repertório sem precisar de conta, e pode sugerir hinos. Cadastrar, editar e apagar exige a conta de administrador. Essa trava é aplicada pelo servidor, nas regras do banco.</p></div>':'')+
     '<div class="field"><label>Conta</label><p class="muted" style="margin:0 0 8px;font-size:14px">'+
-    (USUARIO?("Administrador conectado: "+esc(USUARIO)+".")
-      :"Acompanhando como visitante. A senha é gerenciada na conta do administrador, fora do app.")+
+    (USUARIO?((PODE_TUDO?"Administrador: ":(PODE_EDITAR?"Agenda: ":"Conectado como: "))+esc(USUARIO)+".")
+      :"Acompanhando sem conta. Só quem administra precisa entrar.")+
     '</p><div style="display:flex;gap:8px;flex-wrap:wrap">'+
     (USUARIO?'<button class="btn sm" data-act="sairAdm">Sair da conta</button>'
       :'<button class="btn sm primary" data-act="trava">'+icon("lock",14)+'Entrar como administrador</button>')+
     '</div></div>'+
     '<div class="field"><label>Registros</label><p class="mono muted" style="margin:0;font-size:13px">'+esc(c)+'</p></div>'+
-    (ED()?'<div class="field"><label>Planilhas</label><div style="display:flex;gap:8px;flex-wrap:wrap">'+
+    (TUDO()?'<div class="field"><label>Planilhas</label><div style="display:flex;gap:8px;flex-wrap:wrap">'+
       '<button class="btn sm" data-act="importar">'+icon("upload",14)+'Importar repertório</button>'+
       '<button class="btn sm" data-act="modelo">'+icon("sheet",14)+'Baixar modelo</button>'+
       '</div></div>':'')+
@@ -1223,7 +1299,7 @@ function mAjustes(){
     '<button class="btn sm" data-act="expRep">'+icon("download",14)+'Repertório (CSV)</button>'+
     '<button class="btn sm" data-act="expHist">'+icon("download",14)+'Histórico (CSV)</button>'+
     '</div></div>'+
-    (ED()?'<div class="field"><label>Dados de exemplo</label><div style="display:flex;gap:8px;flex-wrap:wrap">'+
+    (TUDO()?'<div class="field"><label>Dados de exemplo</label><div style="display:flex;gap:8px;flex-wrap:wrap">'+
     '<button class="btn sm" data-act="exemplo">Carregar exemplo</button>'+
     (temEx?'<button class="btn sm danger" data-act="limparExemplo">Remover só os exemplos</button>':'')+
     '</div></div>':'')+
@@ -1517,14 +1593,15 @@ async function limparExemplo(){
 }
 
 /* ============ ações ============ */
-const SO_ADMIN=["incluir","novoEvento","editEvento","delEvento","novoHino","editHino","delHino","montar","montarProx",
-  "novoIntegrante","editIntegrante","delIntegrante","escalar","aprovar","editSugestao","delSugestao",
-  "exemplo","limparExemplo","importar","modelo",
+const SO_AGENDA=["incluir","novoEvento","editEvento","delEvento","montar","montarProx","escalar"];
+const SO_TUDO=["novoHino","editHino","delHino","novoIntegrante","editIntegrante","delIntegrante",
+  "aprovar","editSugestao","delSugestao","exemplo","limparExemplo","importar","modelo",
   "selModo","selHino","selTodos","selLimpar","selApagar","selProx"];
 document.addEventListener("click",async ev=>{
   const el=ev.target.closest("[data-act]"); if(!el)return;
   const a=el.dataset.act, id=el.dataset.id;
-  if(!PODE_EDITAR&&SO_ADMIN.indexOf(a)>=0){toast("Somente leitura: peça acesso de edição a quem administra.");return;}
+  if(!PODE_EDITAR&&SO_AGENDA.indexOf(a)>=0){toast("Somente leitura: peça acesso a quem administra.");return;}
+  if(!PODE_TUDO&&SO_TUDO.indexOf(a)>=0){toast("Seu acesso é da agenda. Repertório e cadastros são do administrador geral.");return;}
   switch(a){
     case "ir": S.view=el.dataset.v; render(); break;
     case "periodo": S.periodo=el.dataset.p; render(); break;
@@ -1573,7 +1650,7 @@ document.addEventListener("click",async ev=>{
       await save("sugestoes",id,Object.assign({},s,{status:"aprovada"}));
       toast("Aprovado e cadastrado no repertório."); break;}
     case "trava": fechar(); mEntrar(); break;
-    case "sairAdm": fechar(); try{ await (window.BANDA.sair()); }catch(e){} toast("Você saiu da conta de administrador."); break;
+    case "sairAdm": fechar(); try{ await (window.BANDA.sair()); }catch(e){} setTimeout(()=>location.reload(),300); break;
     case "selModo": S.selModo=!S.selModo; S.sel={}; render(); break;
     case "selHino": S.sel[id]=!S.sel[id]; render(); break;
     case "selTodos": {const ids=(el.dataset.ids||"").split(",").filter(Boolean);
@@ -1592,6 +1669,18 @@ document.addEventListener("click",async ev=>{
       await save("eventos",p.id,Object.assign({},p,{hinos:atual}));
       S.sel={}; S.selModo=false; render();
       toast(n+" hino(s) no repertório de "+(p.titulo||TIPOS[p.tipo])+"."); break;}
+    case "resumo": fechar(); mResumo(id); break;
+    case "copiarResumo": {
+      const t=document.getElementById("f_res"); if(!t)break;
+      let ok=false;
+      try{ if(navigator.clipboard&&navigator.clipboard.writeText){ await navigator.clipboard.writeText(t.value); ok=true; } }catch(e){}
+      if(!ok){ try{ t.focus(); t.setSelectionRange(0,t.value.length); ok=document.execCommand&&document.execCommand("copy"); }catch(e){} }
+      toast(ok?"Resumo copiado. Cole no grupo.":"Texto selecionado: toque e escolha Copiar.");
+      break; }
+    case "compartilhar": {
+      const t=document.getElementById("f_res"); if(!t)break;
+      try{ await navigator.share({text:t.value}); }catch(e){}
+      break; }
     case "importar": fechar(); mImportar(); break;
     case "modelo": baixarModelo(); break;
     case "expRep": exportarRepertorio(); break;

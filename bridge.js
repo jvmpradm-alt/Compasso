@@ -2,12 +2,26 @@
    Voce nao precisa editar este arquivo: tudo o que muda fica em config.js */
 const SDK = "https://www.gstatic.com/firebasejs/12.18.0/";
 const C = window.CONFIG || {};
-const admins = (C.administradores || []).map(e => String(e).trim().toLowerCase()).filter(Boolean);
+const lista = k => (C[k] || []).map(e => String(e).trim().toLowerCase()).filter(Boolean);
+const admins = lista("administradores");
+const agendistas = lista("agenda");
 let usuario = null, ouvintes = [], pronto = false;
 
-function ehAdmin(u){
-  return !!(u && !u.isAnonymous && u.email && admins.indexOf(String(u.email).toLowerCase()) >= 0);
+/* Administrador = conta de e-mail listada em config.js.
+   Integrante    = abre o link e pronto, sem cadastro: entra de forma
+                   anonima e so le. A mesma separacao vale no servidor,
+                   em firestore.rules.                                 */
+/* admin   = mexe em tudo
+   agenda  = marca e edita compromissos, monta repertorio e escala deles
+   leitura = so acompanha, e pode sugerir hinos                        */
+function papel(u){
+  if(!u || u.isAnonymous || !u.email) return "leitura";
+  const e = String(u.email).toLowerCase();
+  if(admins.indexOf(e) >= 0) return "admin";
+  if(agendistas.indexOf(e) >= 0) return "agenda";
+  return "leitura";
 }
+function ehAdmin(u){ return papel(u) === "admin"; }
 function avisar(){ ouvintes.forEach(f => { try{ f(usuario); }catch(e){} }); }
 function configurado(){
   const f = C.firebase || {};
@@ -56,6 +70,7 @@ function configurado(){
       },
       usuario: () => usuario,
       ehAdmin: () => ehAdmin(usuario),
+      papel: () => papel(usuario),
       entrar:   (email, senha) => signInWithEmailAndPassword(auth, String(email||"").trim(), senha),
       criar:    (email, senha) => createUserWithEmailAndPassword(auth, String(email||"").trim(), senha),
       recuperar:(email)        => sendPasswordResetEmail(auth, String(email||"").trim()),
@@ -66,6 +81,7 @@ function configurado(){
     onAuthStateChanged(auth, u => {
       pronto = true;
       if(!u){
+        // Integrante: entra sozinho, sem cadastro, e so le.
         signInAnonymously(auth).catch(() => { usuario = null; avisar(); });
         return;
       }
