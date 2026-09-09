@@ -1,5 +1,5 @@
 /* Ponte entre o app e o Firebase.
-   Voce nao precisa editar este arquivo: as credenciais ficam em config.js */
+   Voce nao precisa editar este arquivo: tudo o que muda fica em config.js */
 const SDK = "https://www.gstatic.com/firebasejs/12.18.0/";
 const C = window.CONFIG || {};
 const admins = (C.administradores || []).map(e => String(e).trim().toLowerCase()).filter(Boolean);
@@ -18,7 +18,8 @@ function configurado(){
   if(!configurado()){ window.BANDA = { erro:"config" }; return; }
   try{
     const [{ initializeApp },
-           { getAuth, onAuthStateChanged, signInAnonymously, signInWithEmailAndPassword, signOut },
+           { getAuth, onAuthStateChanged, signInAnonymously, signInWithEmailAndPassword,
+             createUserWithEmailAndPassword, sendPasswordResetEmail, signOut },
            { getFirestore, collection, doc, onSnapshot, setDoc, deleteDoc }] = await Promise.all([
       import(SDK + "firebase-app.js"),
       import(SDK + "firebase-auth.js"),
@@ -55,14 +56,19 @@ function configurado(){
       },
       usuario: () => usuario,
       ehAdmin: () => ehAdmin(usuario),
-      entrar: (email, senha) => signInWithEmailAndPassword(auth, String(email||"").trim(), senha),
+      entrar:   (email, senha) => signInWithEmailAndPassword(auth, String(email||"").trim(), senha),
+      criar:    (email, senha) => createUserWithEmailAndPassword(auth, String(email||"").trim(), senha),
+      recuperar:(email)        => sendPasswordResetEmail(auth, String(email||"").trim()),
       sair: async () => { await signOut(auth); try{ await signInAnonymously(auth); }catch(e){} },
       onUser(fn){ ouvintes.push(fn); if(pronto) fn(usuario); }
     };
 
     onAuthStateChanged(auth, u => {
       pronto = true;
-      if(!u){ signInAnonymously(auth).catch(() => { usuario = null; avisar(); }); return; }
+      if(!u){
+        signInAnonymously(auth).catch(() => { usuario = null; avisar(); });
+        return;
+      }
       usuario = u; avisar();
     });
   }catch(e){
