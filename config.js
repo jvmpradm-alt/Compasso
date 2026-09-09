@@ -1,19 +1,15 @@
-/* ================= EDITE SÓ ESTE ARQUIVO =================
-   1. Cole aqui as credenciais do seu app web do Firebase
-      (Console do Firebase > Configurações do projeto > Seus apps > Configuração do SDK).
-   2. Escreva em "administradores" os e-mails que podem cadastrar e editar.
-      Todo o resto do app funciona sem tocar em mais nada.
-   ========================================================= */
-window.CONFIG = {
-  firebase: {
-    apiKey: "COLE_SUA_API_KEY",
-    authDomain: "COLE_SEU_PROJETO.firebaseapp.com",
-    projectId: "COLE_SEU_PROJETO",
-    storageBucket: "COLE_SEU_PROJETO.firebasestorage.app",
-    messagingSenderId: "COLE_SEU_SENDER_ID",
-    appId: "COLE_SEU_APP_ID"
-  },
-  administradores: [
-    "jvmpr.adm@gmail.com"
-  ]
+const firebaseConfig = {
+  apiKey: "AIzaSyAdiH3RLSKNivfRQxuJL9WaG6gWeChyHig",
+  authDomain: "banda-exodo.firebaseapp.com",
+  projectId: "banda-exodo",
+  storageBucket: "banda-exodo.firebasestorage.app",
+  messagingSenderId: "526461803908",
+  appId: "1:526461803908:web:729e92b483bfab1fb011d1",
+  measurementId: "G-9DX1KYKY50"
 };
+
+const administradores = [
+  "jvmpr.adm@gmail.com"
+];
+
+window.CONFIG = { firebase: firebaseConfig, administradores: administradores };
