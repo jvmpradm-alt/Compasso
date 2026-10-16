@@ -328,6 +328,15 @@ select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,va
 .banner{display:flex;align-items:center;gap:10px;padding:10px 13px;border:1px solid #4A3B22;background:rgba(217,160,60,.10);border-radius:var(--r-md);color:#F4DDB0;font-size:13px}
 
 /* somente leitura */
+.novid{display:flex;align-items:flex-start;gap:12px;padding:13px 15px;margin-bottom:14px;border:1px solid #4A2027;
+  background:linear-gradient(160deg,rgba(225,29,46,.13),var(--surface));border-radius:var(--r-lg)}
+.novid .nic{width:34px;height:34px;flex:none;border-radius:9px;display:grid;place-items:center;
+  background:rgba(225,29,46,.18);border:1px solid #4A2027;color:var(--accent-hot)}
+.novid .ntx{flex:1;min-width:0;font-size:14px}
+.novid .ntx b{display:block;font-size:14.5px}
+.novid .nli{color:var(--muted);font-size:13px;margin-top:5px;line-height:1.65}
+.novid .btn{flex:none;margin-top:1px}
+.chip.novo{color:#FFC8CD;background:rgba(225,29,46,.16);border-color:#4A2027}
 .ro-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:20px;font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border:1px solid #2E3350;background:rgba(124,139,224,.12);color:#C6CEF6;white-space:nowrap}
 .ro-chip.abre{border-color:#4A2027;background:rgba(225,29,46,.13);color:#FFC8CD}
 .ro-chip .curto{display:inline}
@@ -456,6 +465,20 @@ function diffDias(a,b){return Math.round((b-a)/86400000);}
 function fmtData(s){const d=parseD(s);if(!d)return"";return pad(d.getDate())+"/"+pad(d.getMonth()+1)+"/"+d.getFullYear();}
 function fmtCurto(s){const d=parseD(s);if(!d)return"";return pad(d.getDate())+" "+MESC[d.getMonth()];}
 function andamento(bpm){bpm=+bpm||0;if(!bpm)return"";if(bpm<70)return"lento";if(bpm<96)return"moderado";if(bpm<121)return"animado";return"rápido";}
+function desde(iso){
+  if(!iso)return "";
+  const d=new Date(iso); if(isNaN(d.getTime()))return "";
+  const m=Math.floor((Date.now()-d.getTime())/60000);
+  if(m<0)return "";
+  if(m<2)return "agora";
+  if(m<60)return "há "+m+" min";
+  const h=Math.floor(m/60);
+  if(h<24)return "há "+h+"h";
+  const dd=Math.floor(h/24);
+  if(dd===1)return "ontem";
+  if(dd<30)return "há "+dd+" dias";
+  return "";
+}
 function iniciais(n){const p=String(n||"").trim().split(/\s+/);if(!p[0])return"?";return (p[0][0]+(p.length>1?p[p.length-1][0]:"")).toUpperCase();}
 
 function icon(name,size){
@@ -488,6 +511,8 @@ function icon(name,size){
     lock:'<rect x="4" y="10.5" width="16" height="10" rx="2.5"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/>',
     sheet:'<rect x="3" y="3.5" width="18" height="17" rx="2.5"/><path d="M3 9h18M3 15h18M9 3.5v17M15 3.5v17"/>',
     copy:'<rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M15 6V4.5A1.5 1.5 0 0 0 13.5 3H4.5A1.5 1.5 0 0 0 3 4.5v9A1.5 1.5 0 0 0 4.5 15H6"/>',
+    sino:'<path d="M6 8.5a6 6 0 0 1 12 0c0 6 2 7 2 7H4s2-1 2-7"/><path d="M10.4 21a2.2 2.2 0 0 0 3.2 0"/>',
+    cal:'<rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M8 2.5v4M16 2.5v4M3 9.5h18"/><path d="M12 13v5M9.5 15.5h5"/>',
     share:'<path d="M12 3v12"/><path d="M8 6.5L12 3l4 3.5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/>'
   };
   return '<svg class="ic" width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+(P[name]||"")+'</svg>';
@@ -496,7 +521,7 @@ function icon(name,size){
 /* ============ estado ============ */
 const COLS=["hinos","eventos","integrantes","sugestoes"];
 let data={hinos:{},eventos:{},integrantes:{},sugestoes:{}};
-let DB=null, MODO="local", PODE_EDITAR=true, PODE_TUDO=true, PODE_SERVIDOR=true, TRAVADO=false, USUARIO="", ASSINADO=false;
+let DB=null, MODO="local", PODE_EDITAR=true, PODE_TUDO=true, PODE_TEMPO=true, PODE_SERVIDOR=true, TRAVADO=false, USUARIO="", ASSINADO=false;
 let S={view:"agenda", periodo:"semana", cursor:hoje(), selDia:iso(hoje()),
        busca:"", ordem:"numero", histModo:"data", sugFiltro:"pendentes",
        selModo:false, sel:{}};
@@ -505,6 +530,8 @@ const LS={
   set(k,v){try{localStorage.setItem("compasso."+k,JSON.stringify(v));}catch(e){}}
 };
 let EU=LS.get("eu",{id:null,nome:""});
+let VISTO=LS.get("visto","");
+function marcarVisto(){VISTO=new Date().toISOString();LS.set("visto",VISTO);}
 let VK=LS.get("vk",null); if(!VK){VK=uid();LS.set("vk",VK);}
 
 const list=c=>Object.keys(data[c]).map(id=>Object.assign({id:id},data[c][id]));
@@ -524,7 +551,7 @@ async function initStore(){
   if(!DB){
     MODO="local";
     COLS.forEach(c=>{data[c]=LS.get("db."+c,{});});
-    PODE_SERVIDOR=true; PODE_TUDO=true; PODE_EDITAR=true; aplicarTrava(); render();
+    PODE_SERVIDOR=true; PODE_TUDO=true; PODE_EDITAR=true; PODE_TEMPO=true; aplicarTrava(); render();
     toast("Banco não configurado. Os dados ficam só neste aparelho.");
     return;
   }
@@ -533,6 +560,7 @@ async function initStore(){
     const pp=(B.papel&&B.papel())||"leitura";
     PODE_TUDO=(pp==="admin");
     PODE_EDITAR=(pp==="admin"||pp==="agenda");
+    PODE_TEMPO=(pp==="admin"||pp==="tempo");
     PODE_SERVIDOR=PODE_TUDO;
     USUARIO=(u&&!u.isAnonymous&&u.email)?u.email:"";
     aplicarTrava();
@@ -559,12 +587,15 @@ function persistLocal(c){LS.set("db."+c,data[c]);}
 function podeMexer(col){
   if(col==="sugestoes")return true;
   if(col==="eventos")return PODE_EDITAR;
+  if(col==="hinos")return PODE_TUDO||PODE_TEMPO;  /* o servidor so deixa mudar o BPM */
   return PODE_TUDO;
 }
 async function save(col,id,obj){
   if(!podeMexer(col)){toast("Você está no modo somente leitura.");return null;}
   id=id||uid();
   const clean=JSON.parse(JSON.stringify(obj));
+  clean.atualizadoEm=new Date().toISOString();
+  marcarVisto();   /* ninguem recebe aviso da propria mudanca */
   if(DB){
     data[col][id]=clean; render();
     try{ await DB.collection(col).doc(id).set(clean); }
@@ -624,7 +655,12 @@ const VIEWS=[
 ];
 /* Quem administra vê tudo. Os componentes veem só Agenda e Sugestões. */
 const VIEWS_COMPONENTE=["agenda","sugestoes"];
-function viewsOk(){return PODE_TUDO?VIEWS:VIEWS.filter(v=>VIEWS_COMPONENTE.indexOf(v.k)>=0);}
+const VIEWS_TEMPO=["agenda","repertorio","historico","sugestoes"];
+function viewsOk(){
+  if(PODE_TUDO)return VIEWS;
+  const ks=PODE_TEMPO?VIEWS_TEMPO:VIEWS_COMPONENTE;
+  return VIEWS.filter(v=>ks.indexOf(v.k)>=0);
+}
 function renderNav(){
   const p=pendentes(), VIEWS=viewsOk();
   $("#navRail").innerHTML=VIEWS.map(v=>
@@ -658,10 +694,13 @@ function render(){
   const rc=$("#roChip");
   rc.hidden=PODE_EDITAR;
   rc.classList.toggle("abre",TRAVADO);
-  rc.innerHTML=TRAVADO
-    ?icon("lock",13)+'<span class="curto">Entrar</span><span class="longo">Entrar como administrador</span>'
-    :icon("lock",13)+'<span class="curto">Leitura</span><span class="longo">Somente leitura</span>';
-  $("#brandSub").textContent=PODE_EDITAR?"Banda":"Leitura";
+  rc.innerHTML=PODE_TEMPO
+    ?icon("tap",13)+'<span class="curto">Tempos</span><span class="longo">Você ajusta os tempos (BPM)</span>'
+    :(TRAVADO
+      ?icon("lock",13)+'<span class="curto">Entrar</span><span class="longo">Entrar como administrador</span>'
+      :icon("lock",13)+'<span class="curto">Leitura</span><span class="longo">Somente leitura</span>');
+  rc.classList.toggle("abre",TRAVADO&&!PODE_TEMPO);
+  $("#brandSub").textContent=PODE_EDITAR?"Banda":(PODE_TEMPO?"Tempos":"Leitura");
   V.innerHTML=({agenda:vAgenda,repertorio:vRepertorio,historico:vHistorico,banda:vBanda,sugestoes:vSugestoes})[S.view]();
   V.scrollTop=0;
 }
@@ -676,6 +715,7 @@ function cardEvento(e){
     (e.local?'<span class="chip">'+esc(e.local)+'</span>':'')+
     '<span class="chip">'+n+' hino'+(n===1?"":"s")+'</span>'+
     (esc_?'<span class="chip ok">'+esc_+' escalado'+(esc_===1?"":"s")+'</span>':'<span class="chip warn">sem escala</span>')+
+    (desde(e.atualizadoEm)?'<span class="chip novo">atualizado '+desde(e.atualizadoEm)+'</span>':'')+
     '</div></div>'+icon("chev",16)+'</button>';
 }
 function vAgenda(){
@@ -749,20 +789,136 @@ function vAgenda(){
       '<span class="chip '+nx.tipo+'">'+TIPOS[nx.tipo]+'</span></div>'+
       '<div class="panel-bd" style="display:flex;flex-direction:column;gap:12px">'+
       '<div><div style="font-family:var(--display);font-size:26px;font-weight:600;line-height:1.1">'+esc(nx.titulo||TIPOS[nx.tipo])+'</div>'+
-      '<div class="mono muted" style="margin-top:5px;font-size:13.5px">'+DIAS[parseD(nx.data).getDay()]+" · "+fmtData(nx.data)+(nx.hora?" · "+nx.hora:"")+(nx.local?" · "+esc(nx.local):"")+'</div></div>'+
+      '<div class="mono muted" style="margin-top:5px;font-size:13.5px">'+DIAS[parseD(nx.data).getDay()]+" · "+fmtData(nx.data)+(nx.hora?" · "+nx.hora:"")+(nx.local?" · "+esc(nx.local):"")+'</div>'+
+      (desde(nx.atualizadoEm)?'<div style="margin-top:8px"><span class="chip novo">atualizado '+desde(nx.atualizadoEm)+'</span></div>':'')+'</div>'+
       ((nx.hinos||[]).length?'<div class="setlist">'+nx.hinos.map((it,i)=>setItem(it,i)).join("")+'</div>'
         :'<div class="banner">'+icon("list",16)+'Repertório ainda não montado para este compromisso.</div>')+
       '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
       (ED()?'<button class="btn primary" data-act="montar" data-id="'+nx.id+'">'+icon("list",15)+'Montar repertório</button>':'')+
       '<button class="btn" data-act="resumo" data-id="'+nx.id+'">'+icon("share",15)+'Resumo para o grupo</button>'+
+      '<button class="btn" data-act="cal" data-id="'+nx.id+'">'+icon("cal",15)+'Meu calendário</button>'+
       '<button class="btn" data-act="evento" data-id="'+nx.id+'">Abrir</button></div>'+
       '</div></div>'):"";
-  return topo+
+  return vAviso()+topo+
     '<div class="toolbar"><div class="seg">'+
     ["semana","mes","ano"].map(p=>'<button data-act="periodo" data-p="'+p+'" class="'+(S.periodo===p?"on":"")+'">'+({semana:"Semana",mes:"Mês",ano:"Ano"})[p]+'</button>').join("")+
-    '</div><div style="flex:1"></div><button class="btn sm" data-act="hoje">Hoje</button>'+
+    '</div><div style="flex:1"></div>'+
+    '<button class="btn sm" data-act="cal">'+icon("cal",14)+'Calendário</button>'+
+    '<button class="btn sm" data-act="hoje">Hoje</button>'+
     (ED()?'<button class="btn sm primary" data-act="novoEvento">'+icon("plus",14)+'Novo</button>':'')+'</div>'+
     corpo;
+}
+/* ============ avisos de novidade ============ */
+function novidadesEventos(){
+  if(!VISTO)return [];
+  const hj=iso(hoje());
+  return eventosOrd().filter(e=>e.atualizadoEm&&e.atualizadoEm>VISTO&&e.data>=hj);
+}
+function novidadesHinos(){
+  if(!VISTO)return [];
+  return list("hinos").filter(h=>h.atualizadoEm&&h.atualizadoEm>VISTO);
+}
+function vAviso(){
+  const ev=novidadesEventos(), hi=novidadesHinos();
+  if(!ev.length&&!hi.length)return "";
+  const n=ev.length+hi.length;
+  const li=[];
+  ev.slice(0,4).forEach(e=>li.push(esc(e.titulo||TIPOS[e.tipo])+" · "+fmtCurto(e.data)+" · "+desde(e.atualizadoEm)));
+  if(ev.length>4)li.push("e mais "+(ev.length-4)+" compromisso"+(ev.length-4===1?"":"s"));
+  if(hi.length)li.push("Repertório: "+hi.length+" hino"+(hi.length===1?"":"s")+" com tom ou tempo atualizado");
+  return '<div class="novid"><div class="nic">'+icon("sino",18)+'</div>'+
+    '<div class="ntx"><b>'+n+(n===1?' novidade':' novidades')+' desde sua última visita</b>'+
+    '<div class="nli">'+li.join("<br>")+'</div></div>'+
+    '<button class="btn sm" data-act="vistoOk">Ok, vi</button></div>';
+}
+
+/* ============ calendario do celular ============ */
+function pad2(n){return (n<10?"0":"")+n;}
+function dtUTC(d){return d.getUTCFullYear()+pad2(d.getUTCMonth()+1)+pad2(d.getUTCDate())+"T"+pad2(d.getUTCHours())+pad2(d.getUTCMinutes())+"00Z";}
+function dtDia(d){return d.getFullYear()+pad2(d.getMonth()+1)+pad2(d.getDate());}
+function dtLocal(d){return dtDia(d)+"T"+pad2(d.getHours())+pad2(d.getMinutes())+"00";}
+const FUSO="America/Fortaleza";
+function janela(e){
+  const d=parseD(e.data); if(!d)return null;
+  if(e.hora&&/^\d{1,2}:\d{2}/.test(e.hora)){
+    const q=String(e.hora).split(":");
+    const ini=new Date(d.getFullYear(),d.getMonth(),d.getDate(),+q[0],+q[1]);
+    const dur=(e.tipo==="ensaio"?120:(e.tipo==="culto"?110:90));
+    return {dia:false,ini:ini,fim:new Date(ini.getTime()+dur*60000)};
+  }
+  return {dia:true,ini:d,fim:addDias(d,1)};
+}
+function detalheCal(e){
+  const L=[], hs=e.hinos||[];
+  if(hs.length){
+    L.push("Repertório:");
+    hs.forEach((it,i)=>{const h=hinoDe(it);
+      const det=[h.tom?"tom "+h.tom:"",h.bpm?h.bpm+" BPM":""].filter(Boolean).join(", ");
+      L.push((i+1)+". "+(h.numero?h.numero+" - ":"")+(h.titulo||"Sem título")+(det?" ("+det+")":""));});
+  }else L.push("Repertório ainda não definido.");
+  const ppl=(e.escala||[]).map(id=>data.integrantes[id]).filter(Boolean);
+  if(ppl.length){L.push("");L.push("Escala: "+ppl.map(x=>x.nome+(x.instrumento?" ("+x.instrumento+")":"")).join(", "));}
+  if(e.obs){L.push("");L.push(e.obs);}
+  L.push(""); L.push("Agenda da banda: "+String(location.href).split("#")[0]);
+  return L.join("\n");
+}
+function urlGoogle(e){
+  const j=janela(e); if(!j)return "";
+  const f=j.dia?dtDia:dtLocal;
+  return "https://calendar.google.com/calendar/render?"+[
+    "action=TEMPLATE",
+    "text="+encodeURIComponent((e.titulo||TIPOS[e.tipo]||"Compromisso")+" · Banda"),
+    "dates="+f(j.ini)+"/"+f(j.fim),
+    "details="+encodeURIComponent(detalheCal(e)),
+    "location="+encodeURIComponent(e.local||""),
+    "ctz="+FUSO].join("&");
+}
+function icsEsc(v){return String(v==null?"":v).replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\r?\n/g,"\\n");}
+function dobra(l){
+  if(l.length<=72)return l;
+  const o=[l.slice(0,72)]; let r=l.slice(72);
+  while(r.length){o.push(" "+r.slice(0,71)); r=r.slice(71);}
+  return o.join("\r\n");
+}
+function icsEvento(e){
+  const j=janela(e); if(!j)return [];
+  const L=["BEGIN:VEVENT","UID:"+e.id+"@compasso-banda","DTSTAMP:"+dtUTC(new Date())];
+  if(j.dia){L.push("DTSTART;VALUE=DATE:"+dtDia(j.ini));L.push("DTEND;VALUE=DATE:"+dtDia(j.fim));}
+  else{L.push("DTSTART;TZID="+FUSO+":"+dtLocal(j.ini));L.push("DTEND;TZID="+FUSO+":"+dtLocal(j.fim));}
+  L.push("SUMMARY:"+icsEsc((e.titulo||TIPOS[e.tipo]||"Compromisso")+" · Banda"));
+  if(e.local)L.push("LOCATION:"+icsEsc(e.local));
+  L.push("DESCRIPTION:"+icsEsc(detalheCal(e)));
+  L.push("BEGIN:VALARM","TRIGGER:-PT2H","ACTION:DISPLAY","DESCRIPTION:"+icsEsc((e.titulo||TIPOS[e.tipo]||"Compromisso")+" · Banda"),"END:VALARM");
+  L.push("END:VEVENT");
+  return L.map(dobra);
+}
+function icsArquivo(evs){
+  let L=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Compasso da Banda//PT-BR","CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH","X-WR-CALNAME:Banda","X-WR-TIMEZONE:"+FUSO];
+  evs.forEach(e=>{L=L.concat(icsEvento(e));});
+  L.push("END:VCALENDAR");
+  return L.join("\r\n");
+}
+function futuros(){const hj=iso(hoje());return eventosOrd().filter(e=>e.data>=hj);}
+function mCalendario(id){
+  const e=id?Object.assign({id:id},data.eventos[id]||{}):null;
+  const fut=futuros();
+  modal("Meu calendário",
+    '<div style="display:flex;flex-direction:column;gap:16px">'+
+    (e&&e.data?('<div><div class="eyebrow" style="margin-bottom:8px">Este compromisso</div>'+
+      '<div class="mono muted" style="font-size:13.5px;margin-bottom:10px">'+esc(e.titulo||TIPOS[e.tipo])+" · "+fmtData(e.data)+(e.hora?" · "+esc(e.hora):"")+'</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+      '<button class="btn primary" data-act="gcal" data-id="'+id+'">'+icon("cal",15)+'Google Agenda</button>'+
+      '<button class="btn" data-act="ics" data-id="'+id+'">'+icon("download",15)+'Baixar para o celular</button></div>'+
+      '<p class="faint" style="margin:9px 0 0;font-size:12.5px">Vai com o repertório, a escala e um alarme 2 horas antes.</p></div>'):'')+
+    '<div><div class="eyebrow" style="margin-bottom:8px">Agenda toda de uma vez</div>'+
+    '<p class="muted" style="margin:0 0 10px;font-size:14px">'+(fut.length?fut.length+' compromisso'+(fut.length===1?"":"s")+' de hoje em diante, em um único arquivo.':'Nenhum compromisso marcado a partir de hoje.')+'</p>'+
+    (fut.length?'<button class="btn" data-act="icsTudo">'+icon("download",15)+'Baixar a agenda da banda</button>':'')+
+    '<div class="nli" style="margin-top:12px;font-size:13px;color:var(--muted);line-height:1.7">'+
+    '<b style="color:var(--text)">No celular:</b> toque no arquivo baixado e confirme. Entra no calendário do aparelho, que é o mesmo do Gmail.<br>'+
+    '<b style="color:var(--text)">No computador:</b> abra calendar.google.com, engrenagem, Configurações, Importar e exportar, escolha o arquivo.</div></div>'+
+    '<div class="banner">'+icon("cal",16)+'O calendário recebe uma cópia. Se algo mudar aqui, você vê o aviso de novidade nesta tela e importa de novo.</div>'+
+    '</div>');
 }
 function ED(){return PODE_EDITAR;}   /* pode mexer na agenda */
 function TUDO(){return PODE_TUDO;} /* pode mexer nos cadastros */
@@ -1041,6 +1197,7 @@ function mDetalheEvento(id){
       :'<p class="muted" style="margin:0">Ninguém escalado ainda.</p>')+'</div>'+
     (e.obs?'<div><div class="eyebrow" style="margin-bottom:6px">Observações</div><p class="muted" style="margin:0;white-space:pre-wrap">'+esc(e.obs)+'</p></div>':'')+
     '</div>',
+    '<button class="btn" data-act="cal" data-id="'+id+'">'+icon("cal",15)+'Calendário</button>'+
     '<button class="btn" data-act="resumo" data-id="'+id+'">'+icon("share",15)+'Resumo</button>'+
     (ED()?('<button class="btn" data-act="editEvento" data-id="'+id+'">'+icon("edit",15)+'Editar</button>'+
     '<button class="btn primary" data-act="montar" data-id="'+id+'">'+icon("list",15)+'Repertório</button>'):""));
@@ -1126,8 +1283,37 @@ function mDetalheHino(id){
       ex.datas.slice().sort().reverse().map(d=>'<span class="chip mono">'+fmtData(d)+'</span>').join("")+'</div>'
       :'<p class="muted" style="margin:0">Ainda não foi tocado em nenhum compromisso registrado.</p>')+'</div>'+
     '</div>',
-    ED()?('<button class="btn" data-act="editHino" data-id="'+id+'">'+icon("edit",15)+'Editar</button>'+
-    '<button class="btn primary" data-act="montarProx">Repertório do próximo</button>'):"");
+    (PODE_TEMPO?'<button class="btn'+(TUDO()?'':' primary')+'" data-act="tempo" data-id="'+id+'">'+icon("tap",15)+'Ajustar tempo</button>':'')+
+    (ED()?('<button class="btn" data-act="editHino" data-id="'+id+'">'+icon("edit",15)+'Editar</button>'+
+    '<button class="btn primary" data-act="montarProx">Repertório do próximo</button>'):""));
+}
+
+function mTempo(id){
+  const h=data.hinos[id]; if(!h){toast("Hino não encontrado.");return;}
+  const bpm=+h.bpm||90;
+  modal("Tempo · "+(h.numero?h.numero+" · ":"")+(h.titulo||"Hino"),
+    '<div style="display:flex;flex-direction:column;gap:15px">'+
+    '<p class="muted" style="margin:0;font-size:14px">Toque no botão do ritmo acompanhando a música, ou use mais e menos. Só o BPM é alterado: título, tom e notas continuam como estão.</p>'+
+    '<div class="metro"><div class="big" id="mBpm">'+bpm+'</div>'+
+    '<div style="flex:1"><div class="beats" id="mBeats">'+[0,1,2,3].map(i=>'<span class="b'+(i===0?" acc":"")+'"></span>').join("")+'</div>'+
+    '<div class="faint" style="font-size:11.5px;margin-top:7px;letter-spacing:.1em;text-transform:uppercase">Metrônomo 4/4</div></div>'+
+    '<button class="icon-btn" data-act="tap" title="Toque no ritmo">'+icon("tap",16)+'</button>'+
+    '<button class="icon-btn" id="mPlay" data-act="metro" data-bpm="'+bpm+'">'+icon("play",14)+'</button></div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+    '<button class="btn" data-act="bpmD" data-n="-5">− 5</button>'+
+    '<button class="btn" data-act="bpmD" data-n="-1">− 1</button>'+
+    '<button class="btn" data-act="bpmD" data-n="1">+ 1</button>'+
+    '<button class="btn" data-act="bpmD" data-n="5">+ 5</button>'+
+    '<div style="flex:1"></div><span class="chip" id="mAnd">'+andamento(bpm)+'</span></div>'+
+    '</div>',
+    '<button class="btn primary" data-act="salvar">Salvar tempo</button>');
+  onSave=async()=>{
+    const el=document.getElementById("mBpm");
+    const v=Math.min(240,Math.max(30,parseInt(el?el.textContent:bpm,10)||bpm));
+    Metro.stop();
+    await save("hinos",id,Object.assign({},data.hinos[id],{bpm:String(v)}));
+    fechar(); toast("Tempo salvo: "+v+" BPM.");
+  };
 }
 
 function mIntegrante(id){
@@ -1213,6 +1399,7 @@ function textoResumo(e){
     ppl.forEach(p=>L.push("• "+p.nome+(p.instrumento?" — "+p.instrumento:"")));
   }
   if(e.obs){ L.push(""); L.push("*Observações*"); L.push(e.obs); }
+  if(MODO==="nuvem"){ L.push(""); L.push("Agenda sempre atualizada: "+String(location.href).split("#")[0]); }
   return L.join("\n");
 }
 function mResumo(id){
@@ -1278,9 +1465,10 @@ function mAjustes(){
     '<div class="form">'+
     '<div class="field"><label>Seu acesso</label><p class="muted" style="margin:0;font-size:14px">'+
     (MODO!=="nuvem"?"Sem banco configurado: os dados estão salvos apenas neste navegador. Confira o config.js do projeto."
+      :(PODE_TEMPO&&!PODE_EDITAR?"Acesso dos tempos. Você acompanha a agenda e o repertório e pode ajustar o BPM de cada hino pelo botão <b>Ajustar tempo</b>. Título, tom, notas e agenda são de quem administra."
       :(PODE_EDITAR?"Administrador. Você cadastra, edita e apaga tudo. Quem receber o link como <b>somente visualizar</b> enxerga a agenda e o repertório sem poder alterar, mas continua podendo sugerir hinos e apoiar sugestões."
         :(TRAVADO?"Modo acompanhamento. A edição está travada por senha. Você vê agenda, repertório, histórico e escala, e pode sugerir hinos e apoiar sugestões."
-          :"Somente leitura. Você acompanha agenda, repertório, histórico e escala, e pode sugerir hinos e apoiar sugestões. Para editar, peça acesso de edição a quem administra.")))+
+          :"Somente leitura. Você acompanha agenda, repertório, histórico e escala, e pode sugerir hinos e apoiar sugestões. Para editar, peça acesso de edição a quem administra."))))+
     '</p></div>'+
     (MODO==="nuvem"&&PODE_EDITAR?'<div class="field"><label>Como liberar acesso</label><p class="muted" style="margin:0;font-size:14px">Qualquer pessoa com o link acompanha agenda e repertório sem precisar de conta, e pode sugerir hinos. Cadastrar, editar e apagar exige a conta de administrador. Essa trava é aplicada pelo servidor, nas regras do banco.</p></div>':'')+
     '<div class="field"><label>Conta</label><p class="muted" style="margin:0 0 8px;font-size:14px">'+
@@ -1460,15 +1648,17 @@ async function processar(file){
   if(bt){bt.disabled=false;bt.style.opacity="1";}
 }
 function csvCel(v){v=String(v==null?"":v);return /[";\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
-function baixar(nome,linhas){
-  const txt="﻿"+linhas.map(l=>l.map(csvCel).join(";")).join("\r\n");
+function baixarTexto(nome,txt,mime){
   try{
-    const b=new Blob([txt],{type:"text/csv;charset=utf-8"});
+    const b=new Blob([txt],{type:(mime||"text/plain")+";charset=utf-8"});
     const a=document.createElement("a");
     a.href=URL.createObjectURL(b); a.download=nome;
     document.body.appendChild(a); a.click();
     setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);
   }catch(e){ toast("Não deu para baixar o arquivo."); }
+}
+function baixar(nome,linhas){
+  baixarTexto(nome,"﻿"+linhas.map(l=>l.map(csvCel).join(";")).join("\r\n"),"text/csv");
 }
 function baixarModelo(){
   baixar("modelo-repertorio.csv",[["Hino","BPM","Tom"],
@@ -1601,7 +1791,8 @@ document.addEventListener("click",async ev=>{
   const el=ev.target.closest("[data-act]"); if(!el)return;
   const a=el.dataset.act, id=el.dataset.id;
   if(!PODE_EDITAR&&SO_AGENDA.indexOf(a)>=0){toast("Somente leitura: peça acesso a quem administra.");return;}
-  if(!PODE_TUDO&&SO_TUDO.indexOf(a)>=0){toast("Seu acesso é da agenda. Repertório e cadastros são do administrador geral.");return;}
+  if(!PODE_TUDO&&SO_TUDO.indexOf(a)>=0){toast(PODE_TEMPO?"Seu acesso é o dos tempos. Cadastros são do administrador.":"Seu acesso é da agenda. Repertório e cadastros são do administrador geral.");return;}
+  if(!PODE_TEMPO&&(a==="tempo"||a==="bpmD")){toast("Quem ajusta os tempos é a bateria ou quem administra.");return;}
   switch(a){
     case "ir": S.view=el.dataset.v; render(); break;
     case "periodo": S.periodo=el.dataset.p; render(); break;
@@ -1669,6 +1860,28 @@ document.addEventListener("click",async ev=>{
       await save("eventos",p.id,Object.assign({},p,{hinos:atual}));
       S.sel={}; S.selModo=false; render();
       toast(n+" hino(s) no repertório de "+(p.titulo||TIPOS[p.tipo])+"."); break;}
+    case "vistoOk": marcarVisto(); render(); toast("Novidades marcadas como vistas."); break;
+    case "cal": fechar(); mCalendario(id||null); break;
+    case "gcal": {const e=data.eventos[id]; if(!e){toast("Compromisso não encontrado.");break;}
+      const u=urlGoogle(Object.assign({id:id},e));
+      if(!u){toast("Compromisso sem data.");break;}
+      window.open(u,"_blank","noopener"); break;}
+    case "ics": {const e=data.eventos[id]; if(!e){toast("Compromisso não encontrado.");break;}
+      const txt=icsArquivo([Object.assign({id:id},e)]);
+      baixarTexto(("compromisso-"+(e.data||"banda")+".ics"),txt,"text/calendar");
+      toast("Arquivo baixado. Toque nele para entrar no calendário."); break;}
+    case "icsTudo": {const fut=futuros();
+      if(!fut.length){toast("Nada marcado a partir de hoje.");break;}
+      baixarTexto("agenda-banda.ics",icsArquivo(fut),"text/calendar");
+      toast(fut.length+" compromisso(s) no arquivo."); break;}
+    case "tempo": fechar(); mTempo(id); break;
+    case "bpmD": {const vis=document.getElementById("mBpm"); if(!vis)break;
+      const v=Math.min(240,Math.max(30,(parseInt(vis.textContent,10)||90)+(+el.dataset.n||0)));
+      vis.textContent=v;
+      const an=document.getElementById("mAnd"); if(an)an.textContent=andamento(v);
+      const pl=document.getElementById("mPlay"); if(pl)pl.dataset.bpm=v;
+      if(Metro.run){Metro.stop();Metro.start(v);}
+      break;}
     case "resumo": fechar(); mResumo(id); break;
     case "copiarResumo": {
       const t=document.getElementById("f_res"); if(!t)break;
