@@ -37,5 +37,17 @@ const agenda = [
      entre aspas nesta lista e some o mesmo e-mail no firestore.rules. */
 ];
 
+/* ==========================================================
+   QUEM AJUSTA OS TEMPOS (BPM)
+   Estes e-mails acompanham agenda, repertorio e historico e
+   podem mudar SO o BPM de cada hino, pelo botao "Ajustar tempo".
+   Nao mexem em titulo, tom, notas, agenda nem cadastro.
+   E a conta da bateria. Os mesmos e-mails precisam estar no
+   arquivo firestore.rules.
+   ========================================================== */
+const tempos = [
+  "geasecavalcante@gmail.com"
+];
+
 /* ============ daqui para baixo não mexa ============ */
-window.CONFIG = { firebase: firebaseConfig, administradores: administradores, agenda: agenda };
+window.CONFIG = { firebase: firebaseConfig, administradores: administradores, agenda: agenda, tempos: tempos };
