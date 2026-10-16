@@ -5,6 +5,7 @@ const C = window.CONFIG || {};
 const lista = k => (C[k] || []).map(e => String(e).trim().toLowerCase()).filter(Boolean);
 const admins = lista("administradores");
 const agendistas = lista("agenda");
+const tempistas  = lista("tempos");
 let usuario = null, ouvintes = [], pronto = false;
 
 /* Administrador = conta de e-mail listada em config.js.
@@ -13,12 +14,14 @@ let usuario = null, ouvintes = [], pronto = false;
                    em firestore.rules.                                 */
 /* admin   = mexe em tudo
    agenda  = marca e edita compromissos, monta repertorio e escala deles
+   tempo   = acompanha tudo e ajusta so o BPM dos hinos (a bateria)
    leitura = so acompanha, e pode sugerir hinos                        */
 function papel(u){
   if(!u || u.isAnonymous || !u.email) return "leitura";
   const e = String(u.email).toLowerCase();
   if(admins.indexOf(e) >= 0) return "admin";
   if(agendistas.indexOf(e) >= 0) return "agenda";
+  if(tempistas.indexOf(e) >= 0) return "tempo";
   return "leitura";
 }
 function ehAdmin(u){ return papel(u) === "admin"; }
